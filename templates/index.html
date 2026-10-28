@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Índice y Compositor Musical - Bazilio</title>
+    <!-- VexFlow para renderizar pentagramas profesionales -->
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+    <!-- jsPDF y html2canvas para la generación de PDF estilo LilyPond -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --accent-hover: #0284c7;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            color: var(--accent);
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .octave-selector {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            background-color: #0f172a;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .octave-btn {
+            background-color: #334155;
+            color: var(--text);
+            border: 1px solid var(--accent);
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .octave-btn.active {
+            background-color: var(--accent);
+            color: #000;
+        }
+
+        .piano-keys {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-note {
+            background-color: #334155;
+            color: var(--text);
+            border: 2px solid var(--accent);
+            padding: 12px 16px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            min-width: 65px;
+        }
+
+        .btn-note span {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .btn-note:hover {
+            background-color: var(--accent);
+            color: #000;
+        }
+
+        .btn-note:hover span {
+            color: #1e293b;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-play { background-color: #22c55e; color: #000; }
+        .btn-play:hover { background-color: #16a34a; }
+
+        .btn-clear { background-color: #ef4444; color: #fff; }
+        .btn-clear:hover { background-color: #dc2626; }
+
+        .btn-export { background-color: #a855f7; color: #fff; }
+        .btn-export:hover { background-color: #9333ea; }
+
+        .btn-pdf { background-color: #38bdf8; color: #000; }
+        .btn-pdf:hover { background-color: #0284c7; color: #fff; }
+
+        .score-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            min-height: 180px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .partitura-panel {
+            background-color: #0f172a;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        .partitura-title {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .partitura-notas {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .nota-badge {
+            background-color: var(--accent);
+            color: #000;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nota-badge button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+        }
+
+        .bazilio-code {
+            background-color: #090d16;
+            color: #a7f3d0;
+            padding: 14px;
+            border-radius: 6px;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid #1e293b;
+        }
+
+        /* Plantilla oculta para renderizado A4 multilínea estilo LilyPond */
+        #lilypond-pdf-template {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+            width: 794px; /* Ancho A4 en píxeles */
+            min-height: 1123px;
+            background-color: #ffffff;
+            padding: 50px 40px;
+            box-sizing: border-box;
+        }
+
+        #pdf-score-render {
+            width: 100%;
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎼 Compositor e Índice de Partitura (Bazilio)</h1>
+    <p class="subtitle">Agrega notas musicales con letras para generar tu partitura e interpretarla en Bazilio.</p>
+
+    <!-- Selector de Octava -->
+    <div class="octave-selector">
+        <span>Octava:</span>
+        <button class="octave-btn" onclick="setOctave(3)">3</button>
+        <button class="octave-btn active" id="oct-4" onclick="setOctave(4)">4</button>
+        <button class="octave-btn" onclick="setOctave(5)">5</button>
+    </div>
+
+    <!-- Teclado de notas principales -->
+    <div class="piano-keys">
+        <button class="btn-note" onclick="agregarNota('C')">C <span>(Do)</span></button>
+        <button class="btn-note" onclick="agregarNota('D')">D <span>(Re)</span></button>
+        <button class="btn-note" onclick="agregarNota('E')">E <span>(Mi)</span></button>
+        <button class="btn-note" onclick="agregarNota('F')">F <span>(Fa)</span></button>
+        <button class="btn-note" onclick="agregarNota('G')">G <span>(Sol)</span></button>
+        <button class="btn-note" onclick="agregarNota('A')">A <span>(La)</span></button>
+        <button class="btn-note" onclick="agregarNota('B')">B <span>(Si)</span></button>
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="controls">
+        <button class="btn-action btn-play" onclick="reproducirIndice()">▶ Reproducir</button>
+        <button class="btn-action btn-clear" onclick="limpiarIndice()">🗑 Limpiar</button>
+        <button class="btn-action btn-export" onclick="descargarCodigo()">💾 Exportar .bzl</button>
+        <button class="btn-action btn-pdf" onclick="exportarPDFStyleLilyPond()">📄 Exportar PDF</button>
+    </div>
+
+    <!-- Renderizador de Partitura Visual VexFlow -->
+    <div class="partitura-title">Partitura Generada (Vista Previa):</div>
+    <div class="score-container">
+        <div id="vexflow-output"></div>
+    </div>
+
+    <!-- Visor del Índice de Notas -->
+    <div class="partitura-panel">
+        <div class="partitura-title">Secuencia de Notas en el Índice:</div>
+        <div id="contenedor-notas" class="partitura-notas">
+            <span style="color: #64748b;">(No hay notas en el índice)</span>
+        </div>
+    </div>
+
+    <!-- Código Bazilio Generado -->
+    <div class="partitura-title">Código Bazilio:</div>
+    <div id="codigo-bazilio" class="bazilio-code">Main |:
+    # Agrega notas usando las teclas alfabéticas de arriba
+:|</div>
+</div>
+
+<!-- Plantilla LilyPond A4 para Exportación PDF Exacta -->
+<div id="lilypond-pdf-template">
+    <div id="pdf-score-render"></div>
+</div>
+
+<script>
+    let indiceNotas = [];
+    let octavaActual = 4;
+    let AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    const solfeoMap = {
+        'C': 'Do', 'D': 'Re', 'E': 'Mi',
+        'F': 'Fa', 'G': 'Sol', 'A': 'La', 'B': 'Si'
+    };
+
+    function setOctave(oct) {
+        octavaActual = oct;
+        document.querySelectorAll('.octave-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+
+    function agregarNota(letra) {
+        let notaObj = { letra: letra, octava: octavaActual };
+        indiceNotas.push(notaObj);
+        tocarTono(obtenerFrecuencia(letra, octavaActual), 0.3);
+        actualizarTodo();
+    }
+
+    function eliminarNota(index) {
+        indiceNotas.splice(index, 1);
+        actualizarTodo();
+    }
+
+    function limpiarIndice() {
+        indiceNotas = [];
+        actualizarTodo();
+    }
+
+    function actualizarTodo() {
+        actualizarContenedorNotas();
+        actualizarCodigoBazilio();
+        renderizarPartitura('vexflow-output', 750);
+    }
+
+    function actualizarContenedorNotas() {
+        const contenedor = document.getElementById("contenedor-notas");
+        if (indiceNotas.length === 0) {
+            contenedor.innerHTML = `<span style="color: #64748b;">(No hay notas en el índice)</span>`;
+            return;
+        }
+
+        contenedor.innerHTML = indiceNotas
+            .map((n, i) => `
+                <span class="nota-badge">
+                    ${i + 1}. ${n.letra}${n.octava} (${solfeoMap[n.letra]})
+                    <button onclick="eliminarNota(${i})">✕</button>
+                </span>
+            `).join("");
+    }
+
+    function actualizarCodigoBazilio() {
+        const areaCodigo = document.getElementById("codigo-bazilio");
+        if (indiceNotas.length === 0) {
+            areaCodigo.innerText = `Main |:\n    # Agrega notas usando las teclas de arriba\n:|`;
+            return;
+        }
+
+        let bzlCode = `Main |:\n`;
+        bzlCode += `    # Partitura generada desde el Compositor Interactivo\n`;
+        indiceNotas.forEach(n => {
+            let strNota = n.octava === 4 ? n.letra : `${n.letra}${n.octava}`;
+            bzlCode += `    (:) ${strNota}\n`;
+        });
+        bzlCode += `:|\n`;
+
+        areaCodigo.innerText = bzlCode;
+    }
+
+    // Renderiza la partitura adaptándose automáticamente en múltiples renglones
+    function renderizarPartitura(containerId, maxSystemWidth = 710) {
+        const div = document.getElementById(containerId);
+        div.innerHTML = "";
+
+        if (indiceNotas.length === 0) {
+            div.innerHTML = `<div style="color: #94a3b8; font-family: sans-serif; padding: 20px;">Utiliza los botones de arriba para escribir tu partitura...</div>`;
+            return;
+        }
+
+        const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+        const vfNotes = indiceNotas.map(n => {
+            return new StaveNote({
+                clef: "treble",
+                keys: [`${n.letra.toLowerCase()}/${n.octava}`],
+                duration: "q"
+            });
+        });
+
+        // Agrupar en compases de 4 notas
+        const compases = [];
+        for (let i = 0; i < vfNotes.length; i += 4) {
+            compases.push(vfNotes.slice(i, i + 4));
+        }
+
+        const maxCompasesPorLinea = 4; // Máximo de compases por renglón
+        const compasesPorLinea = Math.min(compases.length, maxCompasesPorLinea);
+        const staveWidth = Math.floor(maxSystemWidth / compasesPorLinea);
+
+        const totalLineas = Math.ceil(compases.length / maxCompasesPorLinea);
+        const totalHeight = totalLineas * 120 + 30;
+
+        const renderer = new Renderer(div, Renderer.Backends.SVG);
+        renderer.resize(maxSystemWidth + 20, totalHeight);
+        const context = renderer.getContext();
+
+        compases.forEach((notasCompas, idx) => {
+            const lineaActual = Math.floor(idx / maxCompasesPorLinea);
+            const posEnLinea = idx % maxCompasesPorLinea;
+
+            const y = 10 + lineaActual * 110;
+            const x = 10 + posEnLinea * staveWidth;
+
+            const stave = new Stave(x, y, staveWidth);
+
+            // Añadir clave de Sol solo al inicio de cada renglón
+            if (posEnLinea === 0) {
+                stave.addClef("treble");
+            }
+
+            stave.setContext(context).draw();
+
+            const numBeats = notasCompas.length;
+            const voice = new Voice({ num_beats: numBeats, beat_value: 4 });
+            voice.addTickables(notasCompas);
+
+            new Formatter().joinVoices([voice]).format([voice], staveWidth - (posEnLinea === 0 ? 50 : 20));
+            voice.draw(context, stave);
+        });
+    }
+
+    // Exportación PDF con soporte de saltos de renglón
+    async function exportarPDFStyleLilyPond() {
+        if (indiceNotas.length === 0) {
+            alert("Agrega algunas notas antes de exportar la partitura en PDF.");
+            return;
+        }
+
+        const pdfRenderDiv = document.getElementById("pdf-score-render");
+        pdfRenderDiv.innerHTML = "";
+
+        // Indicador de tempo exactamente como en LilyPond
+        const tempoHeader = document.createElement("div");
+        tempoHeader.style.cssText = "font-family: 'Times New Roman', serif; font-size: 16px; margin-bottom: 10px; color: #000;";
+        tempoHeader.innerHTML = "<b>♩ = 120</b>";
+        pdfRenderDiv.appendChild(tempoHeader);
+
+        const staveContainer = document.createElement("div");
+        staveContainer.id = "pdf-stave-target";
+        pdfRenderDiv.appendChild(staveContainer);
+
+        // Renderizar con un ancho que encaja en A4
+        renderizarPartitura("pdf-stave-target", 700);
+
+        const element = document.getElementById("lilypond-pdf-template");
+        
+        try {
+            const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff" });
+            const imgData = canvas.toDataURL("image/png");
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF("p", "mm", "a4");
+            pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
+            pdf.save("partitura_bazilio.pdf");
+        } catch (err) {
+            console.error("Error al generar PDF:", err);
+            alert("No se pudo generar el archivo PDF.");
+        }
+    }
+
+    function descargarCodigo() {
+        const codigo = document.getElementById("codigo-bazilio").innerText;
+        const blob = new Blob([codigo], { type: "text/plain;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "sinfonia.bzl";
+        a.click();
+    }
+
+    async function reproducirIndice() {
+        if (indiceNotas.length === 0) return;
+
+        for (let i = 0; i < indiceNotas.length; i++) {
+            let n = indiceNotas[i];
+            tocarTono(obtenerFrecuencia(n.letra, n.octava), 0.4);
+            await new Promise(r => setTimeout(r, 450));
+        }
+    }
+
+    function obtenerFrecuencia(letra, octava) {
+        const baseFreqs = { 'C': 261.63, 'D': 293.66, 'E': 329.63, 'F': 349.23, 'G': 392.00, 'A': 440.00, 'B': 493.88 };
+        let freq = baseFreqs[letra];
+        return freq * Math.pow(2, octava - 4);
+    }
+
+    function tocarTono(freq, duracion) {
+        if (!audioCtx) audioCtx = new AudioContext();
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duracion);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + duracion);
+    }
+
+    window.onload = function() {
+        actualizarTodo();
+    };
+</script>
+
+</body>
+</html>
